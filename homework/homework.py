@@ -46,10 +46,46 @@ def clean_campaign_data():
     - const_price_idx
     - eurobor_three_months
 
-
-
     """
+    import pandas as pd
+    from pathlib import Path
+    import zipfile
+    # Definir rutas:
+    input_path = Path("./files/input/")
+    output_path = Path("./files/output/")
 
+    output_path.mkdir(parents=True, exist_ok=True) 
+
+    zip_files = list(input_path.glob("*.zip"))
+
+
+    dataframes = []
+    for zip_file in zip_files:
+        with zipfile.ZipFile(zip_file) as z:
+            for csv_file in z.namelist():
+                if csv_file.endswith(".csv"):
+                    dataframes.append(pd.read_csv(z.open(csv_file)))
+
+    data = pd.concat(dataframes, ignore_index=True)
+
+    client_df = data[['client_id', 'age', 'job', 'marital', 'education', 'credit_default', 'mortgage']].copy()
+    client_df['job'] = client_df['job'].str.replace('-', '_', regex=False).str.replace('.', '', regex=False)
+    client_df['education'] = client_df['education'].str.replace('.', '_', regex=False).replace("unknown", pd.NA)
+    client_df['credit_default'] = client_df['credit_default'].apply(lambda x: 1 if x == "yes" else 0)
+    client_df['mortgage'] = client_df['mortgage'].apply(lambda x: 1 if x == "yes" else 0)
+
+    camp_df = data[['client_id', 'number_contacts', 'contact_duration', 'previous_campaign_contacts', 'previous_outcome', 'campaign_outcome', 'day', 'month']].copy()
+    camp_df['previous_outcome'] = camp_df['previous_outcome'].apply(lambda x: 1 if x == "success" else 0)
+    camp_df['campaign_outcome'] = camp_df['campaign_outcome'].apply(lambda x: 1 if x == "yes" else 0)
+    camp_df['last_contact_date'] = pd.to_datetime(camp_df['day'].astype(str) + '-' + camp_df['month'] + '-2022', format='%d-%b-%Y')
+    camp_df = camp_df.drop(columns=['day', 'month'])
+
+    economic_df = data[['client_id', 'cons_price_idx', 'euribor_three_months']].copy()
+
+
+    client_df.to_csv(output_path / "client.csv", index=False)
+    camp_df.to_csv(output_path / "campaign.csv", index=False)
+    economic_df.to_csv(output_path / "economics.csv", index=False)
     return
 
 
